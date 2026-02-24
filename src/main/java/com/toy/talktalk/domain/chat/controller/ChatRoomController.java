@@ -66,6 +66,15 @@ public class ChatRoomController {
         return ResponseEntity.ok(chatRoomService.getMyChatRooms(userId));
     }
 
+    @PostMapping("/{roomId}/messages/read")
+    public ResponseEntity<Void> markAsRead(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long roomId
+    ) {
+        chatMessageService.markAsRead(userId, roomId);
+        return ResponseEntity.ok().build();
+    }
+
     @GetMapping("/{roomId}/messages")
     public ResponseEntity<MessagePageResponse> getMessages(
             @AuthenticationPrincipal Long userId,

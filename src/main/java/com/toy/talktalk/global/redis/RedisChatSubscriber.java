@@ -1,7 +1,9 @@
 package com.toy.talktalk.global.redis;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.toy.talktalk.domain.chat.dto.ChatEvent;
 import com.toy.talktalk.domain.chat.dto.ChatMessageResponse;
+import com.toy.talktalk.domain.chat.dto.ReadAckResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.connection.Message;
@@ -22,8 +24,13 @@ public class RedisChatSubscriber implements MessageListener {
     @Override
     public void onMessage(Message message, byte[] pattern) {
         try {
-            ChatMessageResponse response = objectMapper.readValue(message.getBody(), ChatMessageResponse.class);
-            messagingTemplate.convertAndSend(STOMP_TOPIC_PREFIX + response.roomId(), response);
+            ChatEvent event = objectMapper.readValue(message.getBody(), ChatEvent.class);
+
+            if (event instanceof ChatMessageResponse chatMessage) {
+                messagingTemplate.convertAndSend(STOMP_TOPIC_PREFIX + chatMessage.roomId(), chatMessage);
+            } else if (event instanceof ReadAckResponse readAck) {
+                messagingTemplate.convertAndSend(STOMP_TOPIC_PREFIX + readAck.roomId(), readAck);
+            }
         } catch (Exception e) {
             log.error("Redis 메시지 역직렬화 실패: {}", e.getMessage());
         }

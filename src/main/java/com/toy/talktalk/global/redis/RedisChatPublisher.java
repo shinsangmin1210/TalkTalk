@@ -1,9 +1,8 @@
 package com.toy.talktalk.global.redis;
 
-import com.toy.talktalk.domain.chat.dto.ChatMessageResponse;
+import com.toy.talktalk.domain.chat.dto.ChatEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -14,8 +13,7 @@ public class RedisChatPublisher {
 
     private final RedisTemplate<String, Object> objectRedisTemplate;
 
-    public void publish(ChatMessageResponse message) {
-        String channel = CHAT_TOPIC_PREFIX + message.roomId();
-        objectRedisTemplate.convertAndSend(channel, message);
+    public void publish(Long roomId, ChatEvent event) {
+        objectRedisTemplate.convertAndSend(CHAT_TOPIC_PREFIX + roomId, event);
     }
 }

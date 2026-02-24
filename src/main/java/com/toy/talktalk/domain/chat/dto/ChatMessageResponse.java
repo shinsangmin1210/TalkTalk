@@ -13,7 +13,7 @@ public record ChatMessageResponse(
         String content,
         MessageType type,
         LocalDateTime sentAt
-) {
+) implements ChatEvent {
     public static ChatMessageResponse from(Message message) {
         return new ChatMessageResponse(
                 message.getId(),

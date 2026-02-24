@@ -5,10 +5,13 @@
 2. [인증 흐름](#2-인증-흐름)
 3. [채팅방 흐름](#3-채팅방-흐름)
 4. [실시간 채팅 흐름](#4-실시간-채팅-흐름)
-5. [API 목록](#5-api-목록)
-6. [WebSocket 명세](#6-websocket-명세)
-7. [에러 코드](#7-에러-코드)
-8. [패키지 구조](#8-패키지-구조)
+5. [Redis 흐름](#5-redis-흐름)
+6. [ERD](#6-erd)
+7. [API 목록](#7-api-목록)
+8. [WebSocket 명세](#8-websocket-명세)
+9. [Redis 키 구조](#9-redis-키-구조)
+10. [에러 코드](#10-에러-코드)
+11. [패키지 구조](#11-패키지-구조)
 
 ---
 
@@ -25,11 +28,15 @@ Client (React + STOMP)
                                        │
                               Spring Service Layer
                                        │
-                              Repository (JPA)
-                                       │
-                                   MariaDB
-                                       │
-                              Redis (Refresh Token)
+                         ┌─────────────┴─────────────┐
+                    Repository (JPA)            Redis
+                         │                       │
+                      MariaDB          ┌──────────┼──────────┐
+                                  Refresh Token  온라인    Unread
+                                               상태 관리   메시지 수
+                                                       │
+                                               Redis Pub/Sub
+                                            (채팅 메시지 분산)
 ```
 
 ---
@@ -87,7 +94,8 @@ POST /api/auth/logout (refreshToken Cookie)
 STOMP CONNECT (Authorization: Bearer {accessToken} 헤더)
     └── StompAuthChannelInterceptor.preSend()
             ├── 토큰 검증 및 userId 추출
-            └── accessor.setUser(authentication) → 이후 핸들러에서 Principal로 접근
+            ├── accessor.setUser(authentication) → 이후 핸들러에서 Principal로 접근
+            └── OnlineStatusService.markOnline(userId) → Redis Set에 등록
 ```
 
 ---
@@ -113,6 +121,7 @@ POST /api/rooms { type, name, inviteeIds }
 GET /api/rooms
     └── ChatRoomRepository.findAllByUserId()
             └── JOIN ChatRoomMember WHERE user.id = userId
+                    └── 각 채팅방마다 UnreadCountService.getUnreadCount() 포함
 
 GET /api/rooms/{roomId}
     └── 채팅방 존재 확인 → 요청자 멤버 여부 확인 → 반환
@@ -141,8 +150,12 @@ Client → /pub/chat.send { roomId, content, type }
             ├── ChatMessageService.saveMessage()
             │       ├── 채팅방 존재 확인
             │       ├── 발신자 멤버 여부 확인
-            │       └── Message 저장 (DB)
-            └── SimpMessagingTemplate → /sub/room/{roomId} 브로드캐스트
+            │       ├── Message 저장 (DB)
+            │       └── UnreadCountService.incrementUnread() → 발신자 제외 멤버 unread +1
+            ├── RedisSubscriptionManager.subscribeRoom() → Redis 채널 구독 등록
+            └── RedisChatPublisher.publish() → Redis 채널에 발행
+                    └── RedisChatSubscriber.onMessage()
+                            └── SimpMessagingTemplate → /sub/room/{roomId} 브로드캐스트
 ```
 
 ### 4-2. 채팅방 구독 (입장)
@@ -150,10 +163,11 @@ Client → /pub/chat.send { roomId, content, type }
 ```
 Client → STOMP SUBSCRIBE /sub/room/{roomId}
     └── StompEventListener.handleSubscribe()
-            ├── userId로 닉네임 조회
+            ├── RedisSubscriptionManager.subscribeRoom() → Redis 채널 구독 등록
+            ├── UnreadCountService.resetUnread() → 해당 유저 unread 초기화
             ├── ChatMessageService.saveSystemMessage()
             │       └── "{닉네임}님이 입장했습니다." SYSTEM 메시지 저장
-            └── /sub/room/{roomId} 브로드캐스트
+            └── RedisChatPublisher.publish() → Redis 경유 브로드캐스트
 ```
 
 ### 4-3. 연결 해제 (퇴장)
@@ -161,6 +175,7 @@ Client → STOMP SUBSCRIBE /sub/room/{roomId}
 ```
 Client → STOMP DISCONNECT
     └── StompEventListener.handleDisconnect()
+            ├── OnlineStatusService.markOffline(userId) → Redis Set에서 제거
             └── 로그 기록 (userId, 닉네임)
 ```
 
@@ -182,7 +197,99 @@ GET /api/rooms/{roomId}/messages?cursor={messageId}&limit=30
 
 ---
 
-## 5. API 목록
+## 5. Redis 흐름
+
+### 5-1. Pub/Sub 메시지 분산 처리
+
+```
+[서버 A]                         [Redis]                        [서버 B]
+ChatMessageHandler               chat:room:{id}            RedisChatSubscriber
+    │                                 │                            │
+    ├── RedisChatPublisher ──────► Publish                         │
+    │                                 │                            │
+    │                                 └──────────────────► onMessage()
+    │                                                              │
+    │                                                   SimpMessagingTemplate
+    │                                                              │
+    │                                                   /sub/room/{roomId}
+    │                                                    (서버 B의 클라이언트)
+    │
+    └── SimpMessagingTemplate
+         /sub/room/{roomId}
+          (서버 A의 클라이언트)
+```
+
+### 5-2. 온라인 상태
+
+```
+CONNECT  → OnlineStatusService.markOnline(userId)   → SADD online:users {userId}
+DISCONNECT → OnlineStatusService.markOffline(userId) → SREM online:users {userId}
+조회     → OnlineStatusService.isOnline(userId)      → SISMEMBER online:users {userId}
+```
+
+### 5-3. 읽지 않은 메시지 수
+
+```
+메시지 전송 → incrementUnread(roomId, senderId, memberIds)
+                → HINCRBY unread:{roomId} {memberId} 1  (발신자 제외)
+
+채팅방 입장 → resetUnread(roomId, userId)
+                → HDEL unread:{roomId} {userId}
+
+목록 조회   → getUnreadCount(roomId, userId)
+                → HGET unread:{roomId} {userId}
+```
+
+---
+
+## 6. ERD
+
+```
+┌─────────────────────┐         ┌──────────────────────────┐
+│        users        │         │        chat_rooms        │
+├─────────────────────┤         ├──────────────────────────┤
+│ id          BIGINT  │         │ id          BIGINT       │
+│ email       VARCHAR │         │ name        VARCHAR(NULL)│
+│ password    VARCHAR │         │ type        VARCHAR      │ ← DIRECT / GROUP
+│ nickname    VARCHAR │         │ created_at  DATETIME     │
+│ profile_image_url   │         └────────────┬─────────────┘
+│             VARCHAR │                      │ 1
+│ role        VARCHAR │                      │
+│ created_at  DATETIME│                      │ N
+│ updated_at  DATETIME│         ┌────────────▼─────────────┐
+└────────┬────────────┘         │     chat_room_members    │
+         │ 1                    ├──────────────────────────┤
+         │                      │ id           BIGINT      │
+         │ N                    │ chat_room_id BIGINT (FK) │
+         └──────────────────────► user_id      BIGINT (FK) │
+                                │ joined_at    DATETIME    │
+                                └──────────────────────────┘
+                                  UNIQUE(chat_room_id, user_id)
+
+┌─────────────────────────────────────────┐
+│                messages                 │
+├─────────────────────────────────────────┤
+│ id           BIGINT                     │
+│ chat_room_id BIGINT (FK → chat_rooms)   │
+│ sender_id    BIGINT (FK → users, NULL)  │ ← SYSTEM 메시지는 NULL
+│ content      TEXT                       │
+│ type         VARCHAR                    │ ← TEXT / IMAGE / SYSTEM
+│ is_read      BOOLEAN                    │
+│ sent_at      DATETIME                   │
+└─────────────────────────────────────────┘
+```
+
+**관계 요약**
+| 관계 | 설명 |
+|------|------|
+| User 1:N ChatRoomMember | 한 유저는 여러 채팅방에 참여 가능 |
+| ChatRoom 1:N ChatRoomMember | 한 채팅방에 여러 멤버 |
+| ChatRoom 1:N Message | 한 채팅방에 여러 메시지 |
+| User 1:N Message | 한 유저가 여러 메시지 발신 (sender_id nullable) |
+
+---
+
+## 7. API 목록
 
 ### 인증 (공개)
 
@@ -205,7 +312,7 @@ GET /api/rooms/{roomId}/messages?cursor={messageId}&limit=30
 | Method | URL | 설명 |
 |--------|-----|------|
 | POST | /api/rooms | 채팅방 생성 |
-| GET | /api/rooms | 내 채팅방 목록 조회 |
+| GET | /api/rooms | 내 채팅방 목록 조회 (unreadCount 포함) |
 | GET | /api/rooms/{roomId} | 채팅방 단건 조회 |
 | POST | /api/rooms/{roomId}/members | 멤버 초대 |
 | DELETE | /api/rooms/{roomId}/members/me | 채팅방 나가기 |
@@ -213,7 +320,7 @@ GET /api/rooms/{roomId}/messages?cursor={messageId}&limit=30
 
 ---
 
-## 6. WebSocket 명세
+## 7. WebSocket 명세
 
 ### 연결
 
@@ -244,7 +351,18 @@ CONNECT 헤더: Authorization: Bearer {accessToken}
 
 ---
 
-## 7. 에러 코드
+## 8. Redis 키 구조
+
+| Key 패턴 | 자료구조 | 설명 |
+|----------|----------|------|
+| `refresh:{userId}` | String | Refresh Token (TTL: 7일) |
+| `online:users` | Set | 현재 온라인 userId 목록 |
+| `unread:{roomId}` | Hash `{ userId: count }` | 채팅방별 읽지 않은 메시지 수 |
+| `chat:room:{roomId}` | Pub/Sub Channel | 채팅 메시지 분산 채널 |
+
+---
+
+## 9. 에러 코드
 
 | Code | HTTP | 설명 |
 |------|------|------|
@@ -263,7 +381,7 @@ CONNECT 헤더: Authorization: Bearer {accessToken}
 
 ---
 
-## 8. 패키지 구조
+## 10. 패키지 구조
 
 ```
 com.toy.talktalk
@@ -285,9 +403,12 @@ com.toy.talktalk
 │                        InviteMemberRequest, ChatMessageRequest,
 │                        ChatMessageResponse, MessagePageResponse
 └── global
-    ├── config           SecurityConfig, WebSocketConfig
+    ├── config           SecurityConfig, WebSocketConfig, RedisConfig
     ├── jwt              JwtProvider, JwtAuthenticationFilter, JwtTokens
     ├── websocket        StompAuthChannelInterceptor, StompEventListener
+    ├── redis            RedisChatPublisher, RedisChatSubscriber,
+    │                    RedisSubscriptionManager, OnlineStatusService,
+    │                    UnreadCountService
     ├── exception        BusinessException, ErrorCode, GlobalExceptionHandler
     └── dto              ErrorResponse
 ```

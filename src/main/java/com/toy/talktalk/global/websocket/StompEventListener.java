@@ -53,7 +53,7 @@ public class StompEventListener {
 
             ChatMessageResponse systemMessage =
                     chatMessageService.saveSystemMessage(roomId, nickname + "님이 입장했습니다.");
-            redisChatPublisher.publish(systemMessage);
+            redisChatPublisher.publish(roomId, systemMessage);
         }
     }
 

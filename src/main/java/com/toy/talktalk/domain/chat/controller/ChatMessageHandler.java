@@ -25,6 +25,6 @@ public class ChatMessageHandler {
         ChatMessageResponse response = chatMessageService.saveMessage(senderId, request);
 
         redisSubscriptionManager.subscribeRoom(request.roomId());
-        redisChatPublisher.publish(response);
+        redisChatPublisher.publish(request.roomId(), response);
     }
 }

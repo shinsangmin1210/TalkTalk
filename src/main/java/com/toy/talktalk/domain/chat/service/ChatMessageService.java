@@ -12,6 +12,9 @@ import com.toy.talktalk.domain.user.entity.User;
 import com.toy.talktalk.domain.user.repository.UserRepository;
 import com.toy.talktalk.global.exception.BusinessException;
 import com.toy.talktalk.global.exception.ErrorCode;
+import com.toy.talktalk.domain.chat.dto.ReadAckResponse;
+import com.toy.talktalk.global.redis.RedisChatPublisher;
+import com.toy.talktalk.global.redis.RedisSubscriptionManager;
 import com.toy.talktalk.global.redis.UnreadCountService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -30,6 +33,8 @@ public class ChatMessageService {
     private final ChatRoomMemberRepository chatRoomMemberRepository;
     private final UserRepository userRepository;
     private final UnreadCountService unreadCountService;
+    private final RedisChatPublisher redisChatPublisher;
+    private final RedisSubscriptionManager redisSubscriptionManager;
 
     @Transactional
     public ChatMessageResponse saveMessage(Long senderId, ChatMessageRequest request) {
@@ -80,6 +85,23 @@ public class ChatMessageService {
                 .toList();
 
         return MessagePageResponse.of(messages, limit);
+    }
+
+    public void markAsRead(Long userId, Long roomId) {
+        ChatRoom chatRoom = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        if (!chatRoomMemberRepository.existsByChatRoomAndUser(chatRoom, user)) {
+            throw new BusinessException(ErrorCode.NOT_ROOM_MEMBER);
+        }
+
+        unreadCountService.resetUnread(roomId, userId);
+
+        redisSubscriptionManager.subscribeRoom(roomId);
+        redisChatPublisher.publish(roomId, ReadAckResponse.of(roomId, userId));
     }
 
     @Transactional
