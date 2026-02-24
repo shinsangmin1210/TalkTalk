@@ -78,29 +78,29 @@ The application is in early development. Spring Security is included but not yet
 ---
 
 ## Step 2. 회원 / 인증 (User & Auth)
-- [ ] `User` 엔티티 설계 — id, email, password, nickname, profileImage, createdAt
-- [ ] `UserRepository` (JPA)
-- [ ] 회원가입 API — `POST /api/auth/signup`
-- [ ] 로그인 API — `POST /api/auth/login` → Access Token + Refresh Token 발급
-- [ ] JWT 생성 / 검증 유틸 (`JwtProvider`)
-- [ ] `JwtAuthenticationFilter` — Security 필터 체인에 등록
-- [ ] `SecurityConfig` — 경로별 인증 설정
-- [ ] Refresh Token 재발급 API — `POST /api/auth/refresh`
-- [ ] 로그아웃 API — `POST /api/auth/logout` (Refresh Token 만료)
-- [ ] 내 프로필 조회 API — `GET /api/users/me`
-- [ ] 프로필 수정 API — `PATCH /api/users/me`
+- [x] `User` 엔티티 설계 — id, email, password, nickname, profileImage, createdAt
+- [x] `UserRepository` (JPA)
+- [x] 회원가입 API — `POST /api/auth/signup`
+- [x] 로그인 API — `POST /api/auth/login` → Access Token + Refresh Token 발급
+- [x] JWT 생성 / 검증 유틸 (`JwtProvider`)
+- [x] `JwtAuthenticationFilter` — Security 필터 체인에 등록
+- [x] `SecurityConfig` — 경로별 인증 설정
+- [x] Refresh Token 재발급 API — `POST /api/auth/refresh`
+- [x] 로그아웃 API — `POST /api/auth/logout` (Refresh Token 만료)
+- [x] 내 프로필 조회 API — `GET /api/users/me`
+- [x] 프로필 수정 API — `PATCH /api/users/me`
 
 ---
 
 ## Step 3. 채팅방 (ChatRoom)
-- [ ] `ChatRoom` 엔티티 설계 — id, name, type(DIRECT/GROUP), createdAt
-- [ ] `ChatRoomMember` 엔티티 설계 — chatRoom, user, joinedAt
-- [ ] `ChatRoomRepository`, `ChatRoomMemberRepository`
-- [ ] 채팅방 생성 API — `POST /api/rooms` (1:1 / 그룹)
-- [ ] 내 채팅방 목록 조회 API — `GET /api/rooms`
-- [ ] 채팅방 단건 조회 API — `GET /api/rooms/{roomId}`
-- [ ] 채팅방 멤버 초대 API — `POST /api/rooms/{roomId}/members`
-- [ ] 채팅방 나가기 API — `DELETE /api/rooms/{roomId}/members/me`
+- [x] `ChatRoom` 엔티티 설계 — id, name, type(DIRECT/GROUP), createdAt
+- [x] `ChatRoomMember` 엔티티 설계 — chatRoom, user, joinedAt
+- [x] `ChatRoomRepository`, `ChatRoomMemberRepository`
+- [x] 채팅방 생성 API — `POST /api/rooms` (1:1 / 그룹)
+- [x] 내 채팅방 목록 조회 API — `GET /api/rooms`
+- [x] 채팅방 단건 조회 API — `GET /api/rooms/{roomId}`
+- [x] 채팅방 멤버 초대 API — `POST /api/rooms/{roomId}/members`
+- [x] 채팅방 나가기 API — `DELETE /api/rooms/{roomId}/members/me`
 
 ---
 
