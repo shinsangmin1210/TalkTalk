@@ -105,13 +105,13 @@ The application is in early development. Spring Security is included but not yet
 ---
 
 ## Step 4. 실시간 채팅 (WebSocket / STOMP)
-- [ ] `WebSocketConfig` — STOMP 엔드포인트, 메시지 브로커 설정
-- [ ] `Message` 엔티티 설계 — id, chatRoom, sender, content, type(TEXT/IMAGE/SYSTEM), sentAt, isRead
-- [ ] `MessageRepository`
-- [ ] STOMP 메시지 수신 핸들러 — `@MessageMapping("/chat.send")`
-- [ ] 메시지 저장 후 구독자에게 브로드캐스트 — `@SendTo("/sub/room/{roomId}")`
-- [ ] 입장 / 퇴장 시스템 메시지 처리
-- [ ] 채팅 이전 메시지 조회 API — `GET /api/rooms/{roomId}/messages` (커서 기반 페이지네이션)
+- [x] `WebSocketConfig` — STOMP 엔드포인트, 메시지 브로커 설정
+- [x] `Message` 엔티티 설계 — id, chatRoom, sender, content, type(TEXT/IMAGE/SYSTEM), sentAt, isRead
+- [x] `MessageRepository`
+- [x] STOMP 메시지 수신 핸들러 — `@MessageMapping("/chat.send")`
+- [x] 메시지 저장 후 구독자에게 브로드캐스트 — `@SendTo("/sub/room/{roomId}")`
+- [x] 입장 / 퇴장 시스템 메시지 처리
+- [x] 채팅 이전 메시지 조회 API — `GET /api/rooms/{roomId}/messages` (커서 기반 페이지네이션)
 
 ---
 

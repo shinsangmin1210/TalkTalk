@@ -2,10 +2,12 @@ package com.toy.talktalk.domain.chat.controller;
 
 import com.toy.talktalk.domain.chat.dto.ChatRoomResponse;
 import com.toy.talktalk.domain.chat.dto.CreateChatRoomRequest;
+import com.toy.talktalk.domain.chat.dto.InviteMemberRequest;
+import com.toy.talktalk.domain.chat.dto.MessagePageResponse;
+import com.toy.talktalk.domain.chat.service.ChatMessageService;
 import com.toy.talktalk.domain.chat.service.ChatRoomService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import com.toy.talktalk.domain.chat.dto.InviteMemberRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -19,6 +21,7 @@ import java.util.List;
 public class ChatRoomController {
 
     private final ChatRoomService chatRoomService;
+    private final ChatMessageService chatMessageService;
 
     @PostMapping
     public ResponseEntity<ChatRoomResponse> createChatRoom(
@@ -61,5 +64,15 @@ public class ChatRoomController {
             @AuthenticationPrincipal Long userId
     ) {
         return ResponseEntity.ok(chatRoomService.getMyChatRooms(userId));
+    }
+
+    @GetMapping("/{roomId}/messages")
+    public ResponseEntity<MessagePageResponse> getMessages(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long roomId,
+            @RequestParam(required = false) Long cursor,
+            @RequestParam(defaultValue = "30") int limit
+    ) {
+        return ResponseEntity.ok(chatMessageService.getMessages(userId, roomId, cursor, limit));
     }
 }

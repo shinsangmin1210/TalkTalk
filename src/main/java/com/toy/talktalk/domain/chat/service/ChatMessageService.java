@@ -1,0 +1,85 @@
+package com.toy.talktalk.domain.chat.service;
+
+import com.toy.talktalk.domain.chat.dto.ChatMessageRequest;
+import com.toy.talktalk.domain.chat.dto.ChatMessageResponse;
+import com.toy.talktalk.domain.chat.dto.MessagePageResponse;
+import com.toy.talktalk.domain.chat.entity.ChatRoom;
+import com.toy.talktalk.domain.chat.entity.Message;
+import com.toy.talktalk.domain.chat.repository.ChatRoomMemberRepository;
+import com.toy.talktalk.domain.chat.repository.ChatRoomRepository;
+import com.toy.talktalk.domain.chat.repository.MessageRepository;
+import com.toy.talktalk.domain.user.entity.User;
+import com.toy.talktalk.domain.user.repository.UserRepository;
+import com.toy.talktalk.global.exception.BusinessException;
+import com.toy.talktalk.global.exception.ErrorCode;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+
+@Service
+@Transactional(readOnly = true)
+@RequiredArgsConstructor
+public class ChatMessageService {
+
+    private final MessageRepository messageRepository;
+    private final ChatRoomRepository chatRoomRepository;
+    private final ChatRoomMemberRepository chatRoomMemberRepository;
+    private final UserRepository userRepository;
+
+    @Transactional
+    public ChatMessageResponse saveMessage(Long senderId, ChatMessageRequest request) {
+        ChatRoom chatRoom = chatRoomRepository.findById(request.roomId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+
+        User sender = userRepository.findById(senderId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        if (!chatRoomMemberRepository.existsByChatRoomAndUser(chatRoom, sender)) {
+            throw new BusinessException(ErrorCode.NOT_ROOM_MEMBER);
+        }
+
+        Message message = Message.builder()
+                .chatRoom(chatRoom)
+                .sender(sender)
+                .content(request.content())
+                .type(request.type())
+                .build();
+
+        return ChatMessageResponse.from(messageRepository.save(message));
+    }
+
+    public MessagePageResponse getMessages(Long userId, Long roomId, Long cursor, int limit) {
+        ChatRoom chatRoom = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        if (!chatRoomMemberRepository.existsByChatRoomAndUser(chatRoom, user)) {
+            throw new BusinessException(ErrorCode.NOT_ROOM_MEMBER);
+        }
+
+        // limit + 1 조회로 다음 페이지 존재 여부 판단
+        PageRequest pageRequest = PageRequest.of(0, limit + 1);
+        List<ChatMessageResponse> messages = (cursor == null
+                ? messageRepository.findByChatRoomIdOrderByIdDesc(roomId, pageRequest)
+                : messageRepository.findByChatRoomIdBeforeCursor(roomId, cursor, pageRequest))
+                .stream()
+                .map(ChatMessageResponse::from)
+                .toList();
+
+        return MessagePageResponse.of(messages, limit);
+    }
+
+    @Transactional
+    public ChatMessageResponse saveSystemMessage(Long roomId, String content) {
+        ChatRoom chatRoom = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+
+        Message message = Message.ofSystem(chatRoom, content);
+        return ChatMessageResponse.from(messageRepository.save(message));
+    }
+}
