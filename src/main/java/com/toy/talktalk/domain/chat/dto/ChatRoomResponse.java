@@ -10,6 +10,7 @@ public record ChatRoomResponse(
         String name,
         ChatRoomType type,
         int memberCount,
+        long unreadCount,
         LocalDateTime createdAt
 ) {
     public static ChatRoomResponse from(ChatRoom chatRoom) {
@@ -18,6 +19,18 @@ public record ChatRoomResponse(
                 chatRoom.getName(),
                 chatRoom.getType(),
                 chatRoom.getMembers().size(),
+                0L,
+                chatRoom.getCreatedAt()
+        );
+    }
+
+    public static ChatRoomResponse from(ChatRoom chatRoom, long unreadCount) {
+        return new ChatRoomResponse(
+                chatRoom.getId(),
+                chatRoom.getName(),
+                chatRoom.getType(),
+                chatRoom.getMembers().size(),
+                unreadCount,
                 chatRoom.getCreatedAt()
         );
     }

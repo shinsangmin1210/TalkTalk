@@ -11,6 +11,7 @@ import com.toy.talktalk.domain.user.entity.User;
 import com.toy.talktalk.domain.user.repository.UserRepository;
 import com.toy.talktalk.global.exception.BusinessException;
 import com.toy.talktalk.global.exception.ErrorCode;
+import com.toy.talktalk.global.redis.UnreadCountService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +26,7 @@ public class ChatRoomService {
     private final ChatRoomRepository chatRoomRepository;
     private final ChatRoomMemberRepository chatRoomMemberRepository;
     private final UserRepository userRepository;
+    private final UnreadCountService unreadCountService;
 
     @Transactional
     public ChatRoomResponse createChatRoom(Long creatorId, CreateChatRoomRequest request) {
@@ -93,7 +95,7 @@ public class ChatRoomService {
 
     public List<ChatRoomResponse> getMyChatRooms(Long userId) {
         return chatRoomRepository.findAllByUserId(userId).stream()
-                .map(ChatRoomResponse::from)
+                .map(room -> ChatRoomResponse.from(room, unreadCountService.getUnreadCount(room.getId(), userId)))
                 .toList();
     }
 

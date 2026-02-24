@@ -12,6 +12,7 @@ import com.toy.talktalk.domain.user.entity.User;
 import com.toy.talktalk.domain.user.repository.UserRepository;
 import com.toy.talktalk.global.exception.BusinessException;
 import com.toy.talktalk.global.exception.ErrorCode;
+import com.toy.talktalk.global.redis.UnreadCountService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,7 @@ public class ChatMessageService {
     private final ChatRoomRepository chatRoomRepository;
     private final ChatRoomMemberRepository chatRoomMemberRepository;
     private final UserRepository userRepository;
+    private final UnreadCountService unreadCountService;
 
     @Transactional
     public ChatMessageResponse saveMessage(Long senderId, ChatMessageRequest request) {
@@ -48,7 +50,14 @@ public class ChatMessageService {
                 .type(request.type())
                 .build();
 
-        return ChatMessageResponse.from(messageRepository.save(message));
+        ChatMessageResponse response = ChatMessageResponse.from(messageRepository.save(message));
+
+        List<Long> memberIds = chatRoomMemberRepository.findAllByChatRoom(chatRoom).stream()
+                .map(member -> member.getUser().getId())
+                .toList();
+        unreadCountService.incrementUnread(request.roomId(), senderId, memberIds);
+
+        return response;
     }
 
     public MessagePageResponse getMessages(Long userId, Long roomId, Long cursor, int limit) {
@@ -62,7 +71,6 @@ public class ChatMessageService {
             throw new BusinessException(ErrorCode.NOT_ROOM_MEMBER);
         }
 
-        // limit + 1 조회로 다음 페이지 존재 여부 판단
         PageRequest pageRequest = PageRequest.of(0, limit + 1);
         List<ChatMessageResponse> messages = (cursor == null
                 ? messageRepository.findByChatRoomIdOrderByIdDesc(roomId, pageRequest)

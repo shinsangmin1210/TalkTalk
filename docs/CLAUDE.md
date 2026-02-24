@@ -116,10 +116,10 @@ The application is in early development. Spring Security is included but not yet
 ---
 
 ## Step 5. Redis 연동 (Pub/Sub 및 캐싱)
-- [ ] `RedisConfig` — RedisTemplate, Pub/Sub 설정
-- [ ] WebSocket 메시지를 Redis Pub/Sub으로 분산 처리 (다중 서버 확장 대비)
-- [ ] 온라인 사용자 상태 관리 — Redis Set (`online:users`)
-- [ ] 채팅방 읽지 않은 메시지 수 캐싱
+- [x] `RedisConfig` — RedisTemplate, Pub/Sub 설정
+- [x] WebSocket 메시지를 Redis Pub/Sub으로 분산 처리 (다중 서버 확장 대비)
+- [x] 온라인 사용자 상태 관리 — Redis Set (`online:users`)
+- [x] 채팅방 읽지 않은 메시지 수 캐싱
 
 ---
 

@@ -1,6 +1,5 @@
 package com.toy.talktalk.global.config;
 
-import com.toy.talktalk.global.jwt.JwtProvider;
 import com.toy.talktalk.global.websocket.StompAuthChannelInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
@@ -15,7 +14,7 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 @RequiredArgsConstructor
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
-    private final JwtProvider jwtProvider;
+    private final StompAuthChannelInterceptor stompAuthChannelInterceptor;
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
@@ -32,6 +31,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
-        registration.interceptors(new StompAuthChannelInterceptor(jwtProvider));
+        registration.interceptors(stompAuthChannelInterceptor);
     }
 }
